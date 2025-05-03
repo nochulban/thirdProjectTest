@@ -1,0 +1,114 @@
+import os
+import subprocess
+from pdf2image import convert_from_path
+from PIL import Image
+import uuid
+import requests
+import json
+
+# ===== CLOVA OCR 설정 =====
+CLOVA_OCR_URL = ""  # 실제 Invoke URL
+CLOVA_OCR_SECRET = ""  # 발급받은 secret key
+
+# ===== 경로 및 설정 =====
+TEMP_DIR = 'converted_files'
+SUPPORTED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'hwp']
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+
+def convert_to_pdf(input_path: str) -> str:
+    output_path = os.path.join(TEMP_DIR, os.path.splitext(os.path.basename(input_path))[0] + ".pdf")
+    command = [
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    "--headless",
+    "--convert-to", "pdf",
+    "--outdir", TEMP_DIR,
+    input_path
+]
+
+    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if os.path.exists(output_path):
+        return output_path
+    else:
+        raise FileNotFoundError(f"[❌] PDF 변환 실패: {input_path}")
+
+
+def pdf_to_images(pdf_path: str) -> list:
+    print(f"[📄] PDF → 이미지 변환 중... {pdf_path}")
+    images = convert_from_path(pdf_path, dpi=300)
+    image_paths = []
+
+    for i, page in enumerate(images):
+        image_path = os.path.join(TEMP_DIR, f"{os.path.splitext(os.path.basename(pdf_path))[0]}_page_{i + 1}.png")
+        page.save(image_path, "PNG")
+        image_paths.append(image_path)
+
+    print(f"[✅] {len(image_paths)}페이지 이미지 저장 완료")
+    return image_paths
+
+
+def document_to_images(file_path: str) -> list:
+    ext = file_path.split('.')[-1].lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise ValueError(f"[❌] 지원하지 않는 형식입니다: {ext}")
+
+    if ext == 'pdf':
+        return pdf_to_images(file_path)
+    else:
+        pdf_path = convert_to_pdf(file_path)
+        return pdf_to_images(pdf_path)
+
+
+def call_clova_ocr(image_path: str) -> str:
+    file_name = os.path.basename(image_path)
+
+    payload = {
+        "images": [
+            {
+                "format": "png",
+                "name": "document"
+            }
+        ],
+        "requestId": str(uuid.uuid4()),
+        "version": "V1",
+        "timestamp": int(uuid.uuid1().time / 10000)
+    }
+
+    with open(image_path, 'rb') as image_file:
+        files = {
+            'file': (file_name, image_file, 'application/octet-stream'),
+            'message': (None, json.dumps(payload), 'application/json')
+        }
+
+        headers = {
+            "X-OCR-SECRET": CLOVA_OCR_SECRET
+        }
+
+        print(f"[🔍] CLOVA OCR 요청: {file_name}")
+        response = requests.post(CLOVA_OCR_URL, headers=headers, files=files)
+
+    if response.status_code == 200:
+        result_json = response.json()
+        texts = [field['inferText'] for field in result_json['images'][0].get('fields', [])]
+        return '\n'.join(texts)
+    else:
+        print(f"[❌] 요청 실패: {response.status_code} - {response.text}")
+        return ""
+
+
+# ======= 실행 =======
+if __name__ == "__main__":
+    input_file = "sample.docx"  # 여기 파일 경로 바꿔서 테스트
+    try:
+        image_files = document_to_images(input_file)
+        all_texts = []
+
+        for img in image_files:
+            extracted_text = call_clova_ocr(img)
+            all_texts.append(extracted_text)
+
+        print("\n\n[📄 최종 OCR 결과]")
+        print("\n".join(all_texts))
+
+    except Exception as e:
+        print(f"[ERROR] {e}")
