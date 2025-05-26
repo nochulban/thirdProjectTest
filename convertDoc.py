@@ -13,7 +13,8 @@ SUPPORTED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'hwp', 'jpeg', 'png
 def convert_to_pdf(directory: str, input_path: str) -> str:
     output_path = os.path.join(directory, os.path.splitext(os.path.basename(input_path))[0] + ".pdf")
     command = [
-        "/opt/homebrew/bin/soffice",
+        '/usr/bin/soffice',
+        #"/opt/homebrew/bin/soffice",
         "--headless",
         "--convert-to", "pdf",
         "--outdir", directory,
