@@ -1,5 +1,5 @@
 # NAVER CLOUD CAMP 정보보안 3기 3조 NOCHULBAN (3차 프로젝트)
-## 공개 출처 기반 수집 파일에 대한 악성코드 탐지 시스템 개발
+## 공개 출처 기반 수집 파일의 OCR 변환 및 개인정보 비식별화 자동화 시스템 개발
 <div align="center">
   <img src="https://github.com/user-attachments/assets/a3819795-5724-472c-a233-5d41daca6ed9" width="500"/>
 </div>
